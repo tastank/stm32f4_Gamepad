@@ -52,13 +52,13 @@
 #define USBD_PID                     0x5710
 
 #define USBD_LANGID_STRING            0x409
-#define USBD_MANUFACTURER_STRING      "Philip Karlsson"
+#define USBD_MANUFACTURER_STRING      "Tyler Stank"
 
-#define USBD_PRODUCT_HS_STRING        "STM32f4 Gamepad"
-#define USBD_SERIALNUMBER_HS_STRING   "00000000011B"
+#define USBD_PRODUCT_HS_STRING        "Stankworks Avionics Controller"
+#define USBD_SERIALNUMBER_HS_STRING   "000000000000"
 
-#define USBD_PRODUCT_FS_STRING        "STM32f4 Gamepad"
-#define USBD_SERIALNUMBER_FS_STRING   "00000000011C"
+#define USBD_PRODUCT_FS_STRING        "Stankworks Avionics Controller"
+#define USBD_SERIALNUMBER_FS_STRING   "000000000001"
 
 #define USBD_CONFIGURATION_HS_STRING  "HID Config"
 #define USBD_INTERFACE_HS_STRING      "HID Interface"
