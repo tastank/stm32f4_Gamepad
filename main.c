@@ -19,10 +19,18 @@ static uint32_t configUSB(void);
 
 static uint32_t delayTime;
 
+static uint8_t button_state;
+static uint8_t prev_button_state;
+static uint8_t current_button;
+
 __ALIGN_BEGIN USB_OTG_CORE_HANDLE  USB_OTG_dev __ALIGN_END; // The USB device
 
 int main(void)
 {
+
+    button_state = 0;
+    prev_button_state = 0;
+    current_button = 0;
     delayTime = 10;
     appInit();
 
@@ -45,63 +53,40 @@ void appInit(void){
 void TIM7_IRQHandler(void)
 {
     static uint32_t delayCounter = 0;
-    static uint8_t segaPins = 0; // This is used when sending the report.
+    static uint32_t logical_button_states; // This is used when sending the report.
     uint16_t inputRead; // Used as a temporary variable for the read
 
     if (delayCounter > 0) {
         delayCounter--;
     }
     else{
-	/* Poll the controller for input */
-	segaPins = 0;
-	// Set CS high..
-	GPIO_SetBits(GPIOA, GPIO_Pin_6);
-	inputRead = ~(GPIO_ReadInputData(GPIOA) & 0x3F);
-	segaPins = (uint8_t)(inputRead & 0x000F); // Add UP,DOWN,LEFT, RIGHT..
-	segaPins |= (uint8_t)(0x0010 & inputRead) << 1; // Add "B" to bit 5
-        segaPins |= (uint8_t)(0x0020 & inputRead) << 1; // Add "C" to bit 6
-	// Set CS low..	
-	GPIO_ResetBits(GPIOA, GPIO_Pin_6);
-	inputRead = ~(GPIO_ReadInputData(GPIOA) & 0x3F);
-	segaPins |= (uint8_t)(0x0010 & inputRead); // Add "A" to bit 4 
-	segaPins |= (uint8_t)(0x0020 & inputRead) << 2; // Add "Start" to bit 7..
 
-	/* Send the input to USB */
-	USBD_HID_SendReport (&USB_OTG_dev,
-			     &segaPins,
-			     1);
-	
-	/* Blink the leds according to the input */
-	/* blink all leds for A,B,C */
-	if(segaPins & 0x10 || segaPins & 0x20 || segaPins & 0x40){
-	    GPIO_SetBits(GPIOD, ALL_LED_PINS);
-	}
-	else{
-	    /* Blink the leds according to the joystick */
-	    GPIO_ResetBits(GPIOD, ALL_LED_PINS);
+        /* Poll the controller for input */
+        // use bitwise NOT for active-low buttons (i.e. push-to-ground)
+        inputRead = GPIO_ReadInputData(GPIOA) & 0x01;
+        button_state = (uint8_t)(inputRead);
+        if (button_state != prev_button_state) {
+            prev_button_state = button_state;
+            // TODO use a define for number of buttons
+            if (button_state) {
+                if (++current_button > 31) {
+                    current_button = 0;
+                }
+            }
+        }
+        logical_button_states = button_state << current_button;
 
-	    if(segaPins & 0x01)
-		GPIO_SetBits(GPIOD, GPIO_Pin_13);
-	    else 
-		GPIO_ResetBits(GPIOD, GPIO_Pin_13);
+        /* Send the input to USB */
+        USBD_HID_SendReport (&USB_OTG_dev,
+            &logical_button_states,
+            4);
+        if(logical_button_states){
+            GPIO_SetBits(GPIOD, ALL_LED_PINS);
+        } else {
+            GPIO_ResetBits(GPIOD, ALL_LED_PINS);
+        }
 
-	    if(segaPins & 0x02)
-		GPIO_SetBits(GPIOD, GPIO_Pin_15);
-	    else 
-		GPIO_ResetBits(GPIOD, GPIO_Pin_15);
-
-	    if(segaPins & 0x04)
-		GPIO_SetBits(GPIOD, GPIO_Pin_12);
-	    else 
-		GPIO_ResetBits(GPIOD, GPIO_Pin_12);
-	
-	    if(segaPins & 0x08)
-		GPIO_SetBits(GPIOD, GPIO_Pin_14);
-	    else 
-		GPIO_ResetBits(GPIOD, GPIO_Pin_14);	    
-	}
-
-	delayCounter = delayTime;
+        delayCounter = delayTime;
     }
     
     /* Clear the TIM7 interrupt source or else the NVIC hardware

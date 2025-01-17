@@ -3,6 +3,7 @@
 #include "usbd_desc.h"
 #include "usbd_req.h"
 
+#define HID_JOYSTICK_REPORT_DESC_SIZE    29
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
   * @{
@@ -125,7 +126,7 @@ __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ] __ALIGN_E
   0xE0,         /*bmAttributes: bus powered and Support Remote Wake-up */
   0x32,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
   
-  /************** Descriptor of Joystick Mouse interface ****************/
+  /************** Descriptor of Joystick interface ****************/
   /* 09 */
   0x09,         /*bLength: Interface Descriptor size*/
   USB_INTERFACE_DESCRIPTOR_TYPE,/*bDescriptorType: Interface descriptor type*/
@@ -136,7 +137,7 @@ __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ] __ALIGN_E
   0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
   0x00,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
   0,            /*iInterface: Index of string descriptor*/
-  /******************** Descriptor of Joystick Mouse HID ********************/
+  /******************** Descriptor of Joystick HID ********************/
   /* 18 */
   0x09,         /*bLength: HID Descriptor size*/
   HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
@@ -145,9 +146,9 @@ __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ] __ALIGN_E
   0x00,         /*bCountryCode: Hardware target country*/
   0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
   0x22,         /*bDescriptorType*/
-  HID_MOUSE_REPORT_DESC_SIZE,/*wItemLength: Total length of Report descriptor*/
+  HID_JOYSTICK_REPORT_DESC_SIZE,/*wItemLength: Total length of Report descriptor*/
   0x00,
-  /******************** Descriptor of Mouse endpoint ********************/
+  /******************** Descriptor of Joystick endpoint ********************/
   /* 27 */
   0x07,          /*bLength: Endpoint Descriptor size*/
   USB_ENDPOINT_DESCRIPTOR_TYPE, /*bDescriptorType:*/
@@ -165,25 +166,28 @@ __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ] __ALIGN_E
     #pragma data_alignment=4   
   #endif
 #endif /* USB_OTG_HS_INTERNAL_DMA_ENABLED */  
-__ALIGN_BEGIN static uint8_t HID_MOUSE_ReportDesc[HID_MOUSE_REPORT_DESC_SIZE] __ALIGN_END =
+__ALIGN_BEGIN static uint8_t HID_JOYSTICK_ReportDesc[HID_JOYSTICK_REPORT_DESC_SIZE] __ALIGN_END =
 {
-  0x05,   0x01, // USAGE_PAGE (Generic Desktop)
-  0x09,   0x05, // USAGE (Game Pad)
-  0xA1,   0x01, // COLLECTION (Application)
+0x05, 0x01,        // Usage Page (Generic Desktop)
+0x09, 0x04,        // Usage (Joystick)
+0xA1, 0x01,        // Collection (Application)
+0x15, 0x00,        // Logical Minimum (0)
+0x25, 0x01,        // Logical Maximum (1)
+0x75, 0x01,        // Report Size (1 bit)
+0x95, 0x20,        // Report Count (2 buttons)
+0x05, 0x09,        // Usage Page (Button)
+0x19, 0x01,        // Usage Minimum (Button 1)
+0x29, 0x20,        // Usage Maximum (Button 2) (if usage min = 1, max = report count)
+0x81, 0x02,        // Input (Data, Var, Abs) - Button states
 
-  0xA1,   0x00, // COLLECTION (Physical)
-  0x05,   0x09, // USAGE_PAGE (Button)
-  0x19,   0x01, // USAGE_MINIMUM (Button 1)
-  0x29,   0x08, // USAGE_MAXIMUM (Button 8)
+// Padding to align to a byte
+// this section is unnecessary if the report is already byte-aligned, but changing it will require changing HID_JOYSTICK_REPORT_DESC_SIZE, so for convenience the report size can be left at 0
+0x75, 0x00,        // Report Size
+0x95, 0x00,        // Report Count
+0x81, 0x03,        // Input (Const, Var, Abs) - Padding byte
 
-  0x15,   0x00, // LOGICAL_MINIMUM (0)
-  0x25,   0x01, // LOGICAL_MAXIMUM (1)
-  0x95,   0x08, // REPORT_COUNT (8)
-  0x75,   0x01, // REPORT_SIZE (1)
+0xC0               // End Collection
 
-  0x81,   0x02, // INPUT (Data,Var,Abs)
- 
-  0xC0,   0xC0  // END_COLLECTION x2
 }; 
 
 /**
@@ -290,8 +294,8 @@ static uint8_t  USBD_HID_Setup (void  *pdev,
     case USB_REQ_GET_DESCRIPTOR: 
       if( req->wValue >> 8 == HID_REPORT_DESC)
       {
-        len = MIN(HID_MOUSE_REPORT_DESC_SIZE , req->wLength);
-        pbuf = HID_MOUSE_ReportDesc;
+        len = MIN(HID_JOYSTICK_REPORT_DESC_SIZE , req->wLength);
+        pbuf = HID_JOYSTICK_ReportDesc;
       }
       else if( req->wValue >> 8 == HID_DESCRIPTOR_TYPE)
       {
