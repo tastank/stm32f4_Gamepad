@@ -22,6 +22,7 @@ static uint32_t delayTime;
 static uint8_t button_state;
 static uint8_t prev_button_state;
 static uint8_t current_button;
+static uint16_t mode;
 
 __ALIGN_BEGIN USB_OTG_CORE_HANDLE  USB_OTG_dev __ALIGN_END; // The USB device
 
@@ -32,6 +33,7 @@ int main(void)
     prev_button_state = 0;
     current_button = 0;
     delayTime = 10;
+    mode = 0;
     appInit();
 
     while (1);
@@ -63,9 +65,28 @@ void TIM7_IRQHandler(void)
 
         /* Poll the controller for input */
         // use bitwise NOT for active-low buttons (i.e. push-to-ground)
+        // GPIOC doesn't work for this with the Discovery board for some reason. Why?
+        // using PD0 (0b00000001) and PD2 (0b00000100)
+        inputRead = ~(GPIO_ReadInputData(GPIOD)) & 0x05;
+        if (inputRead) {
+            mode = inputRead;
+            GPIO_SetBits(GPIOD, GPIO_Pin_12);
+        }
+        if (mode & 0x01) {
+            GPIO_SetBits(GPIOD, GPIO_Pin_12);
+            GPIO_ResetBits(GPIOD, GPIO_Pin_14);
+        } else if (mode & 0x04) {
+            GPIO_SetBits(GPIOD, GPIO_Pin_14);
+            GPIO_ResetBits(GPIOD, GPIO_Pin_12);
+        }
         inputRead = GPIO_ReadInputData(GPIOA) & 0x01;
         button_state = (uint8_t)(inputRead);
         if (button_state != prev_button_state) {
+            if (mode) {
+                logical_button_states = (uint32_t)button_state * mode;
+            } else {
+                logical_button_states = (uint32_t)button_state << current_button;
+            }
             prev_button_state = button_state;
             // TODO use a define for number of buttons
             if (button_state) {
@@ -74,16 +95,15 @@ void TIM7_IRQHandler(void)
                 }
             }
         }
-        logical_button_states = button_state << current_button;
 
         /* Send the input to USB */
         USBD_HID_SendReport (&USB_OTG_dev,
             &logical_button_states,
             4);
         if(logical_button_states){
-            GPIO_SetBits(GPIOD, ALL_LED_PINS);
+            GPIO_SetBits(GPIOD, GPIO_Pin_13);
         } else {
-            GPIO_ResetBits(GPIOD, ALL_LED_PINS);
+            GPIO_ResetBits(GPIOD, GPIO_Pin_13);
         }
 
         delayCounter = delayTime;
@@ -106,7 +126,7 @@ void initGPIO(void){
     gpio_init.GPIO_OType = GPIO_OType_PP;
     gpio_init.GPIO_Pin   = ALL_LED_PINS;
     gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    gpio_init.GPIO_Speed = GPIO_Speed_100MHz;
+    gpio_init.GPIO_Speed = GPIO_Speed_2MHz;
     GPIO_Init(GPIOD, &gpio_init);
 
     // Init the GPIO for the sega controller
@@ -117,16 +137,25 @@ void initGPIO(void){
     gpio_sega.GPIO_Mode = GPIO_Mode_IN;
     gpio_sega.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5; // Continue here..
     gpio_sega.GPIO_OType = GPIO_OType_PP;
-    gpio_sega.GPIO_Speed = GPIO_Speed_100MHz;
+    gpio_sega.GPIO_Speed = GPIO_Speed_2MHz;
     gpio_sega.GPIO_PuPd  = GPIO_PuPd_NOPULL;
     GPIO_Init(GPIOA, &gpio_sega);
     // Configure the output pin
     gpio_sega.GPIO_Mode = GPIO_Mode_OUT;
     gpio_sega.GPIO_Pin = GPIO_Pin_6; // Continue here..
     gpio_sega.GPIO_OType = GPIO_OType_PP;
-    gpio_sega.GPIO_Speed = GPIO_Speed_100MHz;
+    gpio_sega.GPIO_Speed = GPIO_Speed_2MHz;
     gpio_sega.GPIO_PuPd  = GPIO_PuPd_NOPULL;
     GPIO_Init(GPIOA, &gpio_sega);
+
+    GPIO_InitTypeDef gpio_mode_buttons;
+    gpio_mode_buttons.GPIO_Mode = GPIO_Mode_IN;
+    gpio_mode_buttons.GPIO_OType = GPIO_OType_PP;
+    // I don't think I'd need anything faster
+    gpio_mode_buttons.GPIO_Speed = GPIO_Speed_2MHz;
+    gpio_mode_buttons.GPIO_PuPd = GPIO_PuPd_UP;
+    gpio_mode_buttons.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_2;
+    GPIO_Init(GPIOD, &gpio_mode_buttons);
 }
 
 
